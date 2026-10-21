@@ -208,6 +208,23 @@ function servirPagina(req, res) {
   res.send(inyectado);
 }
 
+// Rate limiting estricto para el endpoint de descarga de BD
+const limiterAdmin = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5,                   // solo 5 intentos cada 15 min por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos' },
+});
+
+// Descarga el archivo de la BD (protegido con clave) — debe ir ANTES del catch-all '/*'
+app.get('/admin/download-db', limiterAdmin, (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY) {
+    return res.status(401).send('No autorizado');
+  }
+  res.download(DB_PATH, 'visitas.db');
+});
+
 app.get('/*',         limiterPagina, servirPagina);
 app.get('/file/*',   limiterPagina, servirPagina);
 app.get('/joinchat/*', limiterPagina, servirPagina);

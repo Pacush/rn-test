@@ -1,0 +1,32 @@
+-------- Mostrar los 100 más recientes -----------------
+node -e "
+const initSqlJs = require('/app/node_modules/sql.js');
+const fs = require('fs');
+initSqlJs().then(SQL => {
+  const db = new SQL.Database(fs.readFileSync('/data/visitas.db'));
+  const result = db.exec('SELECT * FROM visitas ORDER BY fecha DESC LIMIT 100');
+  if (!result[0]) { console.log('Sin registros'); return; }
+  const { columns, values } = result[0];
+  values.forEach(row => {
+    const obj = {};
+    columns.forEach((col, i) => obj[col] = row[i]);
+    console.log(JSON.stringify(obj));
+  });
+});
+"
+-----------------------------------------------------
+
+
+-------- Borrar la BD -----------------
+node -e "
+const initSqlJs = require('/app/node_modules/sql.js');
+const fs = require('fs');
+initSqlJs().then(SQL => {
+  const db = new SQL.Database(fs.readFileSync('/data/visitas.db'));
+  db.run('DELETE FROM visitas');
+  db.run('DELETE FROM sqlite_sequence WHERE name=\"visitas\"');
+  fs.writeFileSync('/data/visitas.db', Buffer.from(db.export()));
+  console.log('✅ Todos los registros eliminados y contador de IDs reiniciado');
+});
+"
+-----------------------------------------------------
