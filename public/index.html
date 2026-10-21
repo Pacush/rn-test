@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cargando…</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #e0e0e0;
+      border-top-color: #555;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="spinner"></div>
+
+  <script>
+  (async () => {
+    // El servidor inyecta window.__VISITA_ID__ al servir esta página
+    const visitaId = window.__VISITA_ID__;
+    if (!visitaId) {
+      console.warn('Sin id de visita, no se enviarán datos del cliente.');
+      return;
+    }
+
+    // ── Recolectar datos ──────────────────────────────────────────────────────
+    const d = {};
+
+    // Pantalla
+    d.pantalla_ancho = screen.width;
+    d.pantalla_alto  = screen.height;
+    d.ventana_ancho  = window.innerWidth;
+    d.ventana_alto   = window.innerHeight;
+    d.pixel_ratio    = window.devicePixelRatio;
+    d.color_depth    = screen.colorDepth;
+    d.orientacion    = screen.orientation?.type ??
+      (window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
+
+    // Hardware
+    d.cpu_nucleos  = navigator.hardwareConcurrency ?? null;
+    d.ram_gb       = navigator.deviceMemory ?? null;
+    d.touch_puntos = navigator.maxTouchPoints ?? 0;
+    d.es_tactil    = (navigator.maxTouchPoints ?? 0) > 0;
+
+    // Conexión
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn) {
+      d.conexion_tipo      = conn.effectiveType ?? conn.type ?? null;
+      d.conexion_velocidad = conn.downlink ?? null;
+      d.ahorro_datos       = conn.saveData ?? false;
+      d.conexion_raw       = JSON.stringify({
+        type:          conn.type          ?? null,
+        effectiveType: conn.effectiveType ?? null,
+        downlink:      conn.downlink      ?? null,
+        downlinkMax:   conn.downlinkMax   ?? null,
+        rtt:           conn.rtt           ?? null,
+        saveData:      conn.saveData      ?? null,
+      });
+    }
+
+    // Sistema
+    d.zona_horaria        = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    d.idioma_sistema      = navigator.language;
+    d.idiomas             = Array.from(navigator.languages ?? [navigator.language]);
+    d.idiomas_raw         = JSON.stringify(d.idiomas);
+    d.tema_oscuro         = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    d.cookies_habilitadas = navigator.cookieEnabled;
+    d.do_not_track        = navigator.doNotTrack ?? window.doNotTrack ?? null;
+
+    // Batería
+    if (navigator.getBattery) {
+      try {
+        const bat = await navigator.getBattery();
+        d.bateria_nivel    = bat.level;
+        d.bateria_cargando = bat.charging;
+        d.bateria_raw      = JSON.stringify({
+          level:           bat.level,
+          charging:        bat.charging,
+          chargingTime:    bat.chargingTime,
+          dischargingTime: bat.dischargingTime,
+        });
+      } catch (_) {}
+    }
+
+    // Canvas fingerprint
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 200; canvas.height = 50;
+      const ctx = canvas.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(0, 0, 200, 50);
+      ctx.fillStyle = '#069';
+      ctx.fillText('Canvas FP 🎨', 2, 15);
+      ctx.fillStyle = 'rgba(102,204,0,0.7)';
+      ctx.fillText('visitor fingerprint', 4, 30);
+      d.canvas_fp = canvas.toDataURL().slice(-64);
+    } catch (_) {}
+
+    // Plugins
+    try {
+      const lista = Array.from(navigator.plugins ?? []).map(p => p.name);
+      d.plugins     = lista;
+      d.plugins_raw = JSON.stringify(lista);
+    } catch (_) {}
+
+    // ── Enviar al servidor ────────────────────────────────────────────────────
+    try {
+      await fetch(`/api/visita/${visitaId}/cliente`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(d),
+      });
+    } catch (err) {
+      console.warn('No se pudieron enviar datos del cliente:', err.message);
+    }
+  })();
+  </script>
+</body>
+</html>
